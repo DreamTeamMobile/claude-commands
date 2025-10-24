@@ -54,47 +54,45 @@ function validateGroupingLogic(grouping: Grouping): { valid: boolean; reason?: s
     };
   }
 
-  // Check 2: For Bash commands, ensure different executables aren't mixed
-  if (grouping.pattern.startsWith('Bash(')) {
-    const patternCmd = grouping.pattern.match(/Bash\(([^:)]+)/)?.[1];
-
-    // Extract executable from each match
-    const executables = new Set<string>();
-    for (const match of grouping.matches) {
-      const matchCmd = match.match(/Bash\(([^\s:)]+)/)?.[1];
-      if (matchCmd) {
-        executables.add(matchCmd);
-      }
-    }
-
-    // If we have multiple different executables, that's wrong
-    if (executables.size > 1) {
-      return {
-        valid: false,
-        reason: `Mixed different executables: ${Array.from(executables).join(', ')} - these should be separate patterns`
-      };
-    }
-
-    // Check if pattern executable matches the matches
-    if (patternCmd && executables.size > 0 && !executables.has(patternCmd)) {
-      return {
-        valid: false,
-        reason: `Pattern uses "${patternCmd}" but matches use ${Array.from(executables).join(', ')}`
-      };
-    }
+  // Check 1b: WebFetch patterns can't use wildcards in domain names
+  if (grouping.pattern.startsWith('WebFetch(domain:') && grouping.pattern.includes('*')) {
+    return {
+      valid: false,
+      reason: `WebFetch doesn't support domain wildcards. Pattern "${grouping.pattern}" is invalid - domains must be explicit`
+    };
   }
 
-  // Check 3: All matches should have the same prefix as the pattern base
-  if (grouping.pattern.includes(':*')) {
-    const patternBase = grouping.pattern.split(':*')[0];
+  // Check 2: For Bash commands, all matches must start with the same command base
+  if (grouping.pattern.startsWith('Bash(') && grouping.pattern.includes(':*')) {
+    const patternBase = grouping.pattern.split(':*')[0]; // e.g., "Bash(pnpm run"
 
     for (const match of grouping.matches) {
-      if (!match.startsWith(patternBase) && !match.includes(patternBase.replace('Bash(', ''))) {
+      // Each match must start with the exact pattern base
+      if (!match.startsWith(patternBase)) {
         return {
           valid: false,
-          reason: `Match "${match}" doesn't align with pattern "${grouping.pattern}"`
+          reason: `Match "${match}" doesn't start with pattern base "${patternBase}"`
         };
       }
+    }
+
+    // Also check that we're not mixing different executables/subcommands
+    const patternCmd = grouping.pattern.match(/Bash\(([^:)]+)/)?.[1]; // e.g., "pnpm run"
+    const commands = new Set<string>();
+
+    for (const match of grouping.matches) {
+      const matchCmd = match.match(/Bash\(([^:)]+)/)?.[1];
+      if (matchCmd) {
+        commands.add(matchCmd);
+      }
+    }
+
+    // All matches should have the same command as the pattern
+    if (commands.size > 1 || (patternCmd && commands.size > 0 && !commands.has(patternCmd))) {
+      return {
+        valid: false,
+        reason: `Pattern "${patternCmd}" but matches use different commands: ${Array.from(commands).join(', ')}`
+      };
     }
   }
 
@@ -147,62 +145,99 @@ SAFETY FRAMEWORK:
 
    Pattern: Irreversible, security-sensitive, or production-affecting commands
 
-4. **WILDCARDING RULES**:
-   - For Bash commands: Only wildcard the subcommand/arguments, not flags
-     - ✅ GOOD: "Bash(poetry run:*)" matches "poetry run <any-command>"
-     - ❌ BAD: "Bash(rm:*)" would match destructive operations
-     - ⚠️ IMPORTANT: Different executables MUST stay separate:
-       - "bun" and "bunx" are different commands - DON'T group together
-       - "npm" and "npx" are different commands - DON'T group together
-       - "pnpm" and "pnpx" are different commands - DON'T group together
+4. **WILDCARDING RULES** (from official Claude Code IAM docs):
 
-   - For WebFetch: Keep domains explicit (but can group subdomains)
-     - ✅ GOOD: "WebFetch(domain:github.com)" can include github.com, gist.github.com, raw.githubusercontent.com
-     - ❌ BAD: "WebFetch(domain:*)" allows arbitrary domains
+   **Bash Commands**:
+   - Wildcards ONLY work with :* suffix (must follow a colon)
+   - The :* matches everything that starts with the prefix
+   - Examples:
+     - ✅ CORRECT: "Bash(npm run:*)" matches "npm run test", "npm run build", "npm run lint"
+     - ✅ CORRECT: "Bash(poetry run:*)" matches "poetry run test", "poetry run lint"
+     - ✅ CORRECT: "Bash(pnpm run:*)" matches all pnpm run commands
+     - ❌ WRONG: "Bash(npm run *)" - wildcard must follow colon, not space
+     - ❌ WRONG: "Bash(npm *)" - too broad, includes npm install, npm test, etc.
+     - ❌ DANGEROUS: "Bash(rm:*)" - matches all rm commands including "rm -rf /"
 
-   - For Read: Be conservative with paths
-     - ✅ GOOD: "Read(//Users/alex/work/**)" if pattern is consistent
-     - ❌ BAD: "Read(//**)" allows reading entire filesystem
+   - ⚠️ CRITICAL: Each base command must be separate:
+     - "Bash(pnpm run:*)" ≠ "Bash(pnpm test:*)" - different subcommands
+     - "Bash(pnpm run:*)" ≠ "Bash(pnpm build:*)" - different subcommands
+     - "Bash(bun:*)" ≠ "Bash(bunx:*)" - different executables
+     - "Bash(npm:*)" ≠ "Bash(npx:*)" - different executables
 
-   - Pattern vs Matches:
-     - ✅ GOOD: pattern "Bash(npm run:*)" matches ["Bash(npm run test)", "Bash(npm run build)"]
-     - ❌ BAD: pattern "Bash(npm:*)" in matches list - the pattern should NOT appear in its own matches
-     - ❌ BAD: pattern covers too much - "Bash(npm:*)" should be "Bash(npm run:*)" if only npm run commands
+   - Pattern matching rules:
+     - Pattern "Bash(npm run:*)" can ONLY match commands starting with "npm run"
+     - If you have "npm test", "npm build", "npm run test" - they need SEPARATE patterns:
+       - "Bash(npm test:*)" for npm test commands
+       - "Bash(npm build:*)" for npm build commands
+       - "Bash(npm run:*)" for npm run commands
+
+   **WebFetch**:
+   - NO wildcards supported at all (per official docs)
+   - Each domain must be listed separately
+   - Examples:
+     - ✅ CORRECT: "WebFetch(domain:github.com)" - single domain
+     - ✅ CORRECT: "WebFetch(domain:stackoverflow.com)" - another separate entry
+     - ❌ WRONG: "WebFetch(domain:*)" - wildcards not supported
+     - ❌ WRONG: "WebFetch(domain:docs.*)" - wildcards not supported
+     - ❌ WRONG: Any attempt to group multiple domains
+   - Note: A single domain like "WebFetch(domain:github.com)" already includes subdomains
+
+   **Read/Write/Edit**:
+   - Use gitignore-style patterns
+   - Be conservative with wildcards
+   - Examples:
+     - ✅ CORRECT: "Read(//Users/alex/work/**)" - specific path prefix
+     - ❌ DANGEROUS: "Read(//**)" - entire filesystem
 
 5. **GROUPING LOGIC**:
-   - Commands are groupable if:
-     a) They have the same base command (e.g., all "poetry run X")
-     b) All variations are in the SAFE category
-     c) The wildcard doesn't introduce new attack vectors
 
-   - Commands should stay separate if:
-     a) Any variation is destructive
-     b) They involve different security contexts (domains, paths)
-     c) The pattern is too broad to safely reason about
+   **Can be grouped if**:
+   - ALL commands have the EXACT same prefix before :*
+   - Example: "Bash(npm run test)", "Bash(npm run build)", "Bash(npm run lint)" → "Bash(npm run:*)"
+   - All variations are in SAFE category
+
+   **MUST stay separate if**:
+   - Different executables (npm vs npx vs pnpm)
+   - Different subcommands (pnpm run vs pnpm test vs pnpm build)
+   - Any command is destructive
+   - WebFetch domains - NEVER group (no wildcard support)
+   - Pattern would be too broad
+
+6. **CRITICAL VALIDATION CHECKS**:
+   - ❌ NEVER include the pattern itself in the matches array
+   - ❌ NEVER group commands with different prefixes (before :*)
+   - ❌ NEVER use wildcards in WebFetch
+   - ✅ ALL matches must start with the same prefix as the pattern
 
 OUTPUT FORMAT (strict JSON):
 {
   "groupings": [
     {
-      "pattern": "Bash(poetry run:*)",
-      "matches": ["Bash(poetry run test)", "Bash(poetry run analyze)"],
-      "reasoning": "Safe: All poetry run commands execute project-defined scripts in pyproject.toml. Development-scoped and reversible.",
+      "pattern": "Bash(npm run:*)",
+      "matches": ["Bash(npm run test)", "Bash(npm run build)", "Bash(npm run lint)"],
+      "reasoning": "Safe: All npm run commands execute package.json scripts. Pattern 'npm run:*' correctly matches all commands starting with 'npm run'.",
       "confidence": "high",
       "safetyCategory": "SAFE_TO_WILDCARD"
     }
   ],
   "ungrouped": [
     {
-      "command": "Bash(rm -rf temp)",
-      "reasoning": "Dangerous: Destructive file deletion. Never wildcard rm commands as 'rm -rf *' could delete critical files.",
-      "shouldApprove": false,
-      "safetyCategory": "NEVER_WILDCARD"
+      "command": "Bash(npm test)",
+      "reasoning": "Cannot group with 'npm run' commands - different subcommand. Keep separate.",
+      "shouldApprove": true,
+      "safetyCategory": "SAFE_TO_WILDCARD"
     },
     {
-      "command": "Bash(git push origin main)",
-      "reasoning": "Medium risk: Publishing changes. Safe to approve individually, but consider if you want to review each push.",
+      "command": "WebFetch(domain:docs.stripe.com)",
+      "reasoning": "WebFetch does not support wildcards. Each domain must be separate.",
       "shouldApprove": true,
-      "safetyCategory": "MAYBE_SAFE"
+      "safetyCategory": "SAFE_TO_WILDCARD"
+    },
+    {
+      "command": "Bash(rm -rf temp)",
+      "reasoning": "Dangerous: Destructive file deletion. Never wildcard rm commands.",
+      "shouldApprove": false,
+      "safetyCategory": "NEVER_WILDCARD"
     }
   ],
   "statistics": {
@@ -246,7 +281,7 @@ async function callClaudeCLI(prompt: string): Promise<string> {
       return;
     }
 
-    const claude = spawn(claudePath, ['--model', 'haiku', '--print'], {
+    const claude = spawn(claudePath, ['--model', 'sonnet', '--print'], {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
@@ -296,7 +331,7 @@ export async function groupCommands(commands: CommandInfo[]): Promise<GroupingRe
   const prompt = generatePrompt(commands);
 
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('🤖 Analyzing commands with Claude Haiku...');
+  console.log('🤖 Analyzing commands with Claude Sonnet...');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
   console.log(`📊 Total commands to analyze: ${commands.length}`);
@@ -312,7 +347,7 @@ export async function groupCommands(commands: CommandInfo[]): Promise<GroupingRe
   }
 
   console.log('🔄 Calling Claude CLI...\n');
-  console.log('   Command: claude --model haiku --print');
+  console.log('   Command: claude --model sonnet --print');
   console.log('   Waiting for response...\n');
 
   try {
