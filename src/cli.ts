@@ -23,7 +23,8 @@ USAGE:
 
 COMMANDS:
   list              List all active Claude Code sessions grouped by project
-  collect           Collect and analyze commands from all projects
+  collect [--reset] Collect and analyze commands from all projects
+                    --reset, -r: Re-scan last 7 days (ignore last run timestamp)
   review <file>     Interactively review and approve/deny commands
   apply <file>      Apply approved commands from review file
   help              Show this help message
@@ -31,6 +32,7 @@ COMMANDS:
 EXAMPLES:
   claude-commands list
   claude-commands collect
+  claude-commands collect --reset
   claude-commands review review-2025-10-23-183045.json
   claude-commands apply review-2025-10-23-183045.json
 
@@ -51,11 +53,17 @@ async function listSessions() {
   console.log(output);
 }
 
-async function collectCommands() {
+async function collectCommands(reset = false) {
   console.log('Collecting commands from Claude Code sessions...\n');
 
   // Read state to get filter date
   const state = await readState();
+
+  if (reset) {
+    console.log('🔄 Reset flag detected - analyzing all sessions from last 7 days\n');
+    state.lastCollectRun = null;
+  }
+
   const filterDate = getFilterDate(state.lastCollectRun);
 
   console.log(`Analyzing sessions since: ${filterDate.toISOString()}\n`);
@@ -166,7 +174,8 @@ async function main() {
       break;
 
     case 'collect':
-      await collectCommands();
+      const hasReset = args[1] === '--reset' || args[1] === '-r';
+      await collectCommands(hasReset);
       break;
 
     case 'review':
