@@ -1,0 +1,56 @@
+{
+  "date": "2025-10-29T00:00:00.000Z",
+  "groupings": [
+    {
+      "pattern": "mcp__playwright",
+      "matches": [
+        "mcp__playwright__navigate",
+        "mcp__playwright__click",
+        "mcp__playwright__screenshot"
+      ],
+      "reasoning": "MCP Server: playwright (3 commands). User can approve entire server or individual commands.",
+      "confidence": "high",
+      "safetyCategory": "MCP_SERVER",
+      "groupType": "mcp-server",
+      "approved": null
+    },
+    {
+      "pattern": "mcp__context7",
+      "matches": [
+        "mcp__context7__get-library-docs",
+        "mcp__context7__resolve-library-id"
+      ],
+      "reasoning": "MCP Server: context7 (2 commands). User can approve entire server or individual commands.",
+      "confidence": "high",
+      "safetyCategory": "MCP_SERVER",
+      "groupType": "mcp-server",
+      "approved": null
+    },
+    {
+      "pattern": "Bash(npm run:*)",
+      "matches": [
+        "Bash(npm run test)",
+        "Bash(npm run build)"
+      ],
+      "reasoning": "Safe: All npm run commands execute package.json scripts.",
+      "confidence": "high",
+      "safetyCategory": "SAFE_TO_WILDCARD",
+      "approved": null
+    }
+  ],
+  "ungrouped": [
+    {
+      "command": "WebFetch(domain:github.com)",
+      "reasoning": "WebFetch does not support wildcards. Each domain must be separate.",
+      "shouldApprove": true,
+      "safetyCategory": "SAFE_TO_WILDCARD",
+      "approved": null
+    }
+  ],
+  "statistics": {
+    "totalProjects": 1,
+    "totalCommands": 8,
+    "grouped": 7,
+    "ungrouped": 1
+  }
+}
