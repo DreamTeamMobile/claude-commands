@@ -36,24 +36,61 @@ function displayGrouping(item: ReviewItem, current: number, total: number) {
 
   if (item.type === 'grouping') {
     const grouping = item.data as Grouping;
+    const isMCPGrouping = grouping.groupType === 'mcp-server';
 
-    console.log(`🔹 Type: ${grouping.safetyCategory === 'SAFE_TO_WILDCARD' ? '✅ Safe Pattern' : grouping.safetyCategory === 'MAYBE_SAFE' ? '⚠️  Maybe Safe' : '❌ Dangerous'}`);
-    console.log(`🔹 Confidence: ${grouping.confidence}`);
-    console.log(`\n📦 Pattern: ${grouping.pattern}\n`);
+    if (isMCPGrouping) {
+      // Special display for MCP server groupings
+      const serverName = grouping.pattern.replace('mcp__', '');
 
-    console.log(`📝 Reasoning:`);
-    console.log(`   ${grouping.reasoning}\n`);
+      console.log(`🔌 MCP Server Grouping`);
+      console.log(`🔹 Type: ${grouping.safetyCategory === 'MCP_SERVER' ? '✅ MCP Server' : grouping.safetyCategory}`);
+      console.log(`🔹 Server: ${serverName}`);
+      console.log(`🔹 Confidence: ${grouping.confidence}\n`);
 
-    console.log(`🎯 Matches (${grouping.matches.length} commands):`);
-    grouping.matches.forEach((match, i) => {
-      console.log(`   ${i + 1}. ${match}`);
-    });
+      console.log(`📝 Reasoning:`);
+      console.log(`   ${grouping.reasoning}\n`);
 
-    console.log(`\n📊 Current status: ${grouping.approved === true ? '✅ APPROVED' : grouping.approved === false ? '❌ DENIED' : '⏸️  PENDING'}`);
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+      console.log(`📦 Option 1: Approve Entire Server`);
+      console.log(`   Pattern: ${grouping.pattern}`);
+      console.log(`   Effect: Allows ALL commands from ${serverName} server\n`);
+
+      console.log(`📦 Option 2: Approve Individual Commands (${grouping.matches.length} commands)`);
+      grouping.matches.forEach((match, i) => {
+        console.log(`   ${i + 1}. ${match}`);
+      });
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+
+      // Show current choice
+      if (grouping.mcpChoice === 'server') {
+        console.log(`📊 Current choice: ✅ ENTIRE SERVER (${grouping.pattern})`);
+      } else if (grouping.mcpChoice === 'individual') {
+        console.log(`📊 Current choice: ✅ INDIVIDUAL COMMANDS (${grouping.matches.length} commands)`);
+      } else if (grouping.approved === false) {
+        console.log(`📊 Current status: ❌ DENIED`);
+      } else {
+        console.log(`📊 Current status: ⏸️  PENDING`);
+      }
+    } else {
+      // Standard display for non-MCP groupings
+      console.log(`🔹 Type: ${grouping.safetyCategory === 'SAFE_TO_WILDCARD' ? '✅ Safe Pattern' : grouping.safetyCategory === 'MAYBE_SAFE' ? '⚠️  Maybe Safe' : '❌ Dangerous'}`);
+      console.log(`🔹 Confidence: ${grouping.confidence}`);
+      console.log(`\n📦 Pattern: ${grouping.pattern}\n`);
+
+      console.log(`📝 Reasoning:`);
+      console.log(`   ${grouping.reasoning}\n`);
+
+      console.log(`🎯 Matches (${grouping.matches.length} commands):`);
+      grouping.matches.forEach((match, i) => {
+        console.log(`   ${i + 1}. ${match}`);
+      });
+
+      console.log(`\n📊 Current status: ${grouping.approved === true ? '✅ APPROVED' : grouping.approved === false ? '❌ DENIED' : '⏸️  PENDING'}`);
+    }
   } else {
     const ungrouped = item.data as UngroupedCommand;
 
-    console.log(`🔹 Type: ${ungrouped.safetyCategory === 'SAFE_TO_WILDCARD' ? '✅ Safe' : ungrouped.safetyCategory === 'MAYBE_SAFE' ? '⚠️  Maybe Safe' : '❌ Dangerous'}`);
+    console.log(`🔹 Type: ${ungrouped.safetyCategory === 'SAFE_TO_WILDCARD' ? '✅ Safe' : ungrouped.safetyCategory === 'MAYBE_SAFE' ? '⚠️  Maybe Safe' : ungrouped.safetyCategory === 'MCP_SERVER' ? '🔌 MCP' : '❌ Dangerous'}`);
     console.log(`🔹 Recommended: ${ungrouped.shouldApprove ? '✅ Yes' : '❌ No'}`);
     console.log(`\n📦 Command: ${ungrouped.command}\n`);
 
@@ -65,7 +102,14 @@ function displayGrouping(item: ReviewItem, current: number, total: number) {
 
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('⌨️  Controls:');
-  console.log('   [A] Approve   [D] Deny   [S] Skip   [N] Next   [P] Previous   [Q] Save & Quit');
+
+  // Check if current item is MCP grouping to show special controls
+  if (item.type === 'grouping' && (item.data as Grouping).groupType === 'mcp-server') {
+    console.log('   [1] Approve Server   [2] Approve Individual   [D] Deny   [S] Skip');
+  } else {
+    console.log('   [A] Approve   [D] Deny   [S] Skip');
+  }
+  console.log('   [N] Next   [P] Previous   [Q] Save & Quit');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 }
 
@@ -111,18 +155,50 @@ export async function interactiveReview(reviewFilePath: string): Promise<void> {
     }
 
     const lowerKey = key.toLowerCase();
+    const currentItem = items[currentIndex];
+    const isMCPGrouping = currentItem.type === 'grouping' && (currentItem.data as Grouping).groupType === 'mcp-server';
 
     switch (lowerKey) {
-      case 'a': // Approve
-        items[currentIndex].data.approved = true;
-        if (currentIndex < items.length - 1) {
-          currentIndex++;
+      case '1': // MCP: Approve entire server
+        if (isMCPGrouping && currentItem.type === 'grouping') {
+          const grouping = currentItem.data as Grouping;
+          grouping.approved = true;
+          grouping.mcpChoice = 'server';
+          if (currentIndex < items.length - 1) {
+            currentIndex++;
+          }
+          displayGrouping(items[currentIndex], currentIndex, items.length);
         }
-        displayGrouping(items[currentIndex], currentIndex, items.length);
+        break;
+
+      case '2': // MCP: Approve individual commands
+        if (isMCPGrouping && currentItem.type === 'grouping') {
+          const grouping = currentItem.data as Grouping;
+          grouping.approved = true;
+          grouping.mcpChoice = 'individual';
+          if (currentIndex < items.length - 1) {
+            currentIndex++;
+          }
+          displayGrouping(items[currentIndex], currentIndex, items.length);
+        }
+        break;
+
+      case 'a': // Approve (standard, not for MCP groupings)
+        if (!isMCPGrouping) {
+          items[currentIndex].data.approved = true;
+          if (currentIndex < items.length - 1) {
+            currentIndex++;
+          }
+          displayGrouping(items[currentIndex], currentIndex, items.length);
+        }
         break;
 
       case 'd': // Deny
         items[currentIndex].data.approved = false;
+        // Clear MCP choice if denying
+        if (currentItem.type === 'grouping') {
+          (currentItem.data as Grouping).mcpChoice = undefined;
+        }
         if (currentIndex < items.length - 1) {
           currentIndex++;
         }
@@ -131,6 +207,10 @@ export async function interactiveReview(reviewFilePath: string): Promise<void> {
 
       case 's': // Skip
         items[currentIndex].data.approved = null;
+        // Clear MCP choice if skipping
+        if (currentItem.type === 'grouping') {
+          (currentItem.data as Grouping).mcpChoice = undefined;
+        }
         if (currentIndex < items.length - 1) {
           currentIndex++;
         }

@@ -22,9 +22,56 @@ const NEVER_WILDCARD_PATTERNS = [
 ];
 
 /**
+ * Validate MCP-specific patterns
+ */
+function validateMCPGrouping(pattern: string): { valid: boolean; reason?: string } {
+  // Only validate MCP patterns
+  if (!pattern.startsWith('mcp__')) {
+    return { valid: true };
+  }
+
+  // Check 1: MCP patterns must not have wildcards
+  if (pattern.includes('*')) {
+    return {
+      valid: false,
+      reason: 'MCP patterns cannot use wildcards. Use exact pattern like "mcp__servername"'
+    };
+  }
+
+  // Check 2: Block mcp__* (too broad)
+  if (pattern === 'mcp__*' || pattern === 'mcp__:*') {
+    return {
+      valid: false,
+      reason: 'mcp__* is too broad - must specify server name'
+    };
+  }
+
+  // Check 3: Validate MCP pattern format
+  // Valid formats: mcp__servername OR mcp__servername__commandname
+  const mcpServerPattern = /^mcp__[a-zA-Z0-9-_]+$/;
+  const mcpCommandPattern = /^mcp__[a-zA-Z0-9-_]+__[a-zA-Z0-9-_]+$/;
+
+  if (!mcpServerPattern.test(pattern) && !mcpCommandPattern.test(pattern)) {
+    return {
+      valid: false,
+      reason: `Invalid MCP pattern format. Expected "mcp__servername" or "mcp__servername__commandname", got "${pattern}"`
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
  * Validate that a grouping pattern is safe
  */
 function validateGrouping(pattern: string): boolean {
+  // Validate MCP patterns
+  const mcpValidation = validateMCPGrouping(pattern);
+  if (!mcpValidation.valid) {
+    console.warn(`⚠️  BLOCKED: ${mcpValidation.reason}`);
+    return false;
+  }
+
   // Extract the actual command from pattern like "Bash(rm:*)"
   const commandMatch = pattern.match(/Bash\(([^:)]+)/);
   if (!commandMatch) return true;
@@ -60,6 +107,26 @@ function validateGroupingLogic(grouping: Grouping): { valid: boolean; reason?: s
       valid: false,
       reason: `WebFetch doesn't support domain wildcards. Pattern "${grouping.pattern}" is invalid - domains must be explicit`
     };
+  }
+
+  // Check 1c: MCP server groupings must have matches from same server
+  if (grouping.pattern.startsWith('mcp__') && grouping.groupType === 'mcp-server') {
+    const serverPattern = /^mcp__([a-zA-Z0-9-_]+)$/;
+    const serverMatch = grouping.pattern.match(serverPattern);
+
+    if (serverMatch) {
+      const serverName = serverMatch[1];
+      const expectedPrefix = `mcp__${serverName}__`;
+
+      for (const match of grouping.matches) {
+        if (!match.startsWith(expectedPrefix)) {
+          return {
+            valid: false,
+            reason: `MCP grouping for server "${serverName}" contains command from different server: "${match}"`
+          };
+        }
+      }
+    }
   }
 
   // Check 2: For Bash commands, all matches must start with the same command base
@@ -145,7 +212,47 @@ SAFETY FRAMEWORK:
 
    Pattern: Irreversible, security-sensitive, or production-affecting commands
 
-4. **WILDCARDING RULES** (from official Claude Code IAM docs):
+4. **MCP COMMANDS** (Model Context Protocol):
+
+   MCP commands follow the pattern: mcp__servername__commandname
+
+   **Grouping Rules**:
+   - Pattern format: "mcp__servername" (NO wildcard suffix like :* or *)
+   - Example: "mcp__playwright" allows ALL commands from playwright server
+   - Safety: Generally safe (MCP_SERVER category) - MCP servers are installed by user
+
+   **CRITICAL - NO WILDCARDS**:
+   - ❌ WRONG: "mcp__playwright:*" - wildcards not supported
+   - ❌ WRONG: "mcp__playwright__*" - wildcards not supported
+   - ❌ WRONG: "mcp__*" - too broad, must specify server
+   - ✅ CORRECT: "mcp__playwright" - allows all playwright commands
+   - ✅ CORRECT: "mcp__playwright__navigate" - specific command
+
+   **Two Grouping Options**:
+   When you find multiple MCP commands from same server, create a grouping with:
+   - pattern: "mcp__servername" (e.g., "mcp__playwright")
+   - matches: All commands from that server
+   - groupType: "mcp-server"
+   - safetyCategory: "MCP_SERVER"
+   - User will choose: approve entire server OR approve individual commands
+
+   **Examples**:
+   Input commands:
+   - mcp__playwright__navigate
+   - mcp__playwright__click
+   - mcp__playwright__screenshot
+
+   Output grouping:
+   {
+     "pattern": "mcp__playwright",
+     "matches": ["mcp__playwright__navigate", "mcp__playwright__click", "mcp__playwright__screenshot"],
+     "reasoning": "MCP Server: playwright (3 commands). User can approve entire server or individual commands.",
+     "confidence": "high",
+     "safetyCategory": "MCP_SERVER",
+     "groupType": "mcp-server"
+   }
+
+5. **WILDCARDING RULES** (from official Claude Code IAM docs):
 
    **Bash Commands**:
    - Wildcards ONLY work with :* suffix (must follow a colon)
@@ -189,12 +296,13 @@ SAFETY FRAMEWORK:
      - ✅ CORRECT: "Read(//Users/alex/work/**)" - specific path prefix
      - ❌ DANGEROUS: "Read(//**)" - entire filesystem
 
-5. **GROUPING LOGIC**:
+6. **GROUPING LOGIC**:
 
    **Can be grouped if**:
    - ALL commands have the EXACT same prefix before :*
    - Example: "Bash(npm run test)", "Bash(npm run build)", "Bash(npm run lint)" → "Bash(npm run:*)"
    - All variations are in SAFE category
+   - MCP commands from same server → "mcp__servername" (user chooses server-level or individual)
 
    **MUST stay separate if**:
    - Different executables (npm vs npx vs pnpm)
@@ -203,11 +311,14 @@ SAFETY FRAMEWORK:
    - WebFetch domains - NEVER group (no wildcard support)
    - Pattern would be too broad
 
-6. **CRITICAL VALIDATION CHECKS**:
+7. **CRITICAL VALIDATION CHECKS**:
    - ❌ NEVER include the pattern itself in the matches array
    - ❌ NEVER group commands with different prefixes (before :*)
    - ❌ NEVER use wildcards in WebFetch
+   - ❌ NEVER use wildcards in MCP patterns (not :*, not *, just "mcp__servername")
+   - ❌ NEVER use mcp__* (too broad)
    - ✅ ALL matches must start with the same prefix as the pattern
+   - ✅ For MCP groupings, all matches must be from the same server
 
 OUTPUT FORMAT (strict JSON):
 {
@@ -218,6 +329,14 @@ OUTPUT FORMAT (strict JSON):
       "reasoning": "Safe: All npm run commands execute package.json scripts. Pattern 'npm run:*' correctly matches all commands starting with 'npm run'.",
       "confidence": "high",
       "safetyCategory": "SAFE_TO_WILDCARD"
+    },
+    {
+      "pattern": "mcp__playwright",
+      "matches": ["mcp__playwright__navigate", "mcp__playwright__click", "mcp__playwright__screenshot"],
+      "reasoning": "MCP Server: playwright (3 commands). User can approve entire server or individual commands.",
+      "confidence": "high",
+      "safetyCategory": "MCP_SERVER",
+      "groupType": "mcp-server"
     }
   ],
   "ungrouped": [

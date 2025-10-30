@@ -30,15 +30,17 @@ export interface Grouping {
   matches: string[];
   reasoning: string;
   confidence: 'high' | 'medium' | 'low';
-  safetyCategory: 'SAFE_TO_WILDCARD' | 'MAYBE_SAFE' | 'NEVER_WILDCARD';
+  safetyCategory: 'SAFE_TO_WILDCARD' | 'MAYBE_SAFE' | 'NEVER_WILDCARD' | 'MCP_SERVER';
   approved: boolean | null;
+  groupType?: 'mcp-server' | 'standard';
+  mcpChoice?: 'server' | 'individual';
 }
 
 export interface UngroupedCommand {
   command: string;
   reasoning: string;
   shouldApprove: boolean;
-  safetyCategory: 'SAFE_TO_WILDCARD' | 'MAYBE_SAFE' | 'NEVER_WILDCARD';
+  safetyCategory: 'SAFE_TO_WILDCARD' | 'MAYBE_SAFE' | 'NEVER_WILDCARD' | 'MCP_SERVER';
   approved: boolean | null;
 }
 

@@ -104,9 +104,30 @@ export async function applyReviewFile(reviewFile: ReviewFile): Promise<{
   // Add approved groupings
   for (const grouping of reviewFile.groupings) {
     if (grouping.approved === true) {
-      if (!existingAllowed.has(grouping.pattern)) {
-        userSettings.permissions!.allow!.push(grouping.pattern);
-        addedPatterns.push(grouping.pattern);
+      // Handle MCP server groupings with choice
+      if (grouping.groupType === 'mcp-server') {
+        if (grouping.mcpChoice === 'server') {
+          // User chose to approve entire server
+          if (!existingAllowed.has(grouping.pattern)) {
+            userSettings.permissions!.allow!.push(grouping.pattern);
+            addedPatterns.push(grouping.pattern);
+          }
+        } else if (grouping.mcpChoice === 'individual') {
+          // User chose to approve individual commands
+          for (const command of grouping.matches) {
+            if (!existingAllowed.has(command)) {
+              userSettings.permissions!.allow!.push(command);
+              addedCommands.push(command);
+            }
+          }
+        }
+        // If mcpChoice is undefined, skip (not properly reviewed)
+      } else {
+        // Standard grouping (non-MCP)
+        if (!existingAllowed.has(grouping.pattern)) {
+          userSettings.permissions!.allow!.push(grouping.pattern);
+          addedPatterns.push(grouping.pattern);
+        }
       }
     }
   }
