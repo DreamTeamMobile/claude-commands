@@ -1,0 +1,34 @@
+# Source files (only dist is published)
+src/
+test-*.ts
+test-*.json
+
+# Config files
+tsconfig.json
+pnpm-workspace.yaml
+.nvmrc
+
+# Git
+.git/
+.gitignore
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# History and temp files
+history/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Lock files (let users resolve their own)
+pnpm-lock.yaml
+package-lock.json
+yarn.lock

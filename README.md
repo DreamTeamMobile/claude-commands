@@ -1,4 +1,4 @@
-# Claude Orchestrator
+# Claude Collect Permissions
 
 Orchestrate multiple Claude Code sessions and intelligently aggregate approved commands across projects.
 
@@ -14,11 +14,17 @@ Orchestrate multiple Claude Code sessions and intelligently aggregate approved c
 ## Installation
 
 ```bash
-# Install dependencies
-pnpm install
+# Via npm
+npm install -g claude-collect-permissions
 
-# Make CLI executable (optional - not needed, you can run all the same scripts using `pnpm orchestrator {command}`)
-chmod +x src/cli.ts
+# Via npx (no install)
+npx claude-collect-permissions <command>
+
+# Via bunx
+bunx claude-collect-permissions <command>
+
+# Via pnpm
+pnpm dlx claude-collect-permissions <command>
 ```
 
 ## Usage
@@ -26,7 +32,7 @@ chmod +x src/cli.ts
 ### List Active Sessions
 
 ```bash
-pnpm claude-commands list
+claude-collect-permissions list
 ```
 
 Shows all Claude Code sessions grouped by project, including:
@@ -38,7 +44,7 @@ Shows all Claude Code sessions grouped by project, including:
 ### 1. Collect & Analyze Commands
 
 ```bash
-pnpm claude-commands collect
+claude-collect-permissions collect
 ```
 
 This will:
@@ -50,7 +56,7 @@ This will:
 ### 2. Review Commands Interactively
 
 ```bash
-pnpm claude-commands review review-2025-10-23-183045.json
+claude-collect-permissions review review-2025-10-23-183045.json
 ```
 
 Interactive controls:
@@ -65,7 +71,7 @@ Interactive controls:
 
 ```bash
 # Apply approved commands to ~/.claude/settings.json
-pnpm claude-commands apply review-2025-10-23-183045.json
+claude-collect-permissions apply review-2025-10-23-183045.json
 ```
 
 This will:
@@ -98,9 +104,9 @@ The orchestrator uses a comprehensive safety framework to prevent dangerous wild
 
 ## Workflow
 
-1. **Daily/Weekly**: Run `orchestrator collect` to gather commands from active sessions
+1. **Daily/Weekly**: Run `claude-collect-permissions collect` to gather commands from active sessions
 2. **Review**: Edit the generated review file, approve/deny commands
-3. **Apply**: Run `orchestrator apply review-*.json` to update user settings
+3. **Apply**: Run `claude-collect-permissions apply review-*.json` to update user settings
 4. **Benefit**: New Claude Code sessions automatically allow approved commands
 
 ## Examples

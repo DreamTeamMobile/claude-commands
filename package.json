@@ -1,25 +1,33 @@
 {
-  "name": "claude-commands-reviewer",
+  "name": "claude-collect-permissions",
   "version": "0.1.0",
   "description": "Intelligently aggregate and review Claude Code command permissions across projects to reduce approval fatigue",
   "type": "module",
   "bin": {
-    "claude-commands": "./src/cli.ts"
+    "claude-collect-permissions": "./dist/cli.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "tsx src/cli.ts",
-    "build": "tsc",
-    "claude-commands": "tsx src/cli.ts"
+    "build": "tsc && chmod +x dist/cli.js",
+    "prepublishOnly": "npm run build",
+    "claude-collect-permissions": "tsx src/cli.ts"
   },
-  "keywords": ["claude", "claude-code", "command", "permission", "reviewer"],
+  "keywords": ["claude", "claude-code", "command", "permission", "reviewer", "cli"],
   "author": "DreamTeam Mobile",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DreamTeamMobile/claude-commands.git"
+  },
   "dependencies": {
-    "dotenv": "^17.2.3",
-    "tsx": "^4.20.6"
+    "dotenv": "^17.2.3"
   },
   "devDependencies": {
     "@types/node": "^22.18.12",
+    "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }
 }

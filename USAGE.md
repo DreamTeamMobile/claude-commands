@@ -3,50 +3,38 @@
 ## Installation
 
 ```bash
-# Already done!
-pnpm install
+# Install globally via npm
+npm install -g claude-collect-permissions
+
+# Or run directly without installing
+npx claude-collect-permissions <command>
+bunx claude-collect-permissions <command>
+pnpm dlx claude-collect-permissions <command>
 ```
 
 ## Running Commands
 
-Use `pnpm claude-commands <command>` to run the CLI:
-
 ```bash
 # List all active Claude Code sessions
-pnpm claude-commands list
+claude-collect-permissions list
 
 # Collect and analyze commands (uses Claude CLI)
-pnpm claude-commands collect
+claude-collect-permissions collect
 
 # Apply approved commands
-pnpm claude-commands apply review-2025-10-23-183045.json
-```
-
-## Making it globally available (optional)
-
-If you want to use `claude-commands` directly without `pnpm`:
-
-```bash
-# Option 1: pnpm link (recommended)
-pnpm link --global
-claude-commands list
-
-# Option 2: Add to PATH
-echo 'export PATH="$PATH:/Users/username/github/claude-enabled/src"' >> ~/.zshrc
-source ~/.zshrc
-./src/cli.ts list
+claude-collect-permissions apply review-2025-10-23-183045.json
 ```
 
 ## First Run Workflow
 
 1. **Discover your sessions:**
    ```bash
-   pnpm claude-commands list
+   claude-collect-permissions list
    ```
 
 2. **Collect commands for review:**
    ```bash
-   pnpm claude-commands collect
+   claude-collect-permissions collect
    ```
 
    Note: This uses the `claude` CLI command, which must be installed and authenticated.
@@ -55,7 +43,7 @@ source ~/.zshrc
 
 3. **Review and approve commands interactively:**
    ```bash
-   pnpm claude-commands review review-*.json
+   claude-collect-permissions review review-*.json
    ```
 
    Use the interactive interface to approve/deny each command:
@@ -78,7 +66,7 @@ source ~/.zshrc
 
 4. **Apply approved commands:**
    ```bash
-   pnpm claude-commands apply review-*.json
+   claude-collect-permissions apply review-*.json
    ```
 
    This will:

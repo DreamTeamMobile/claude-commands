@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 
 import 'dotenv/config';
 import { readFile, writeFile } from 'fs/promises';
@@ -16,10 +16,10 @@ const HISTORY_FILE = join(REPO_ROOT, 'history', 'command-approvals.md');
 
 async function showHelp() {
   console.log(`
-Claude Commands - Manage multiple Claude Code sessions
+Claude Collect Permissions - Manage multiple Claude Code sessions
 
 USAGE:
-  claude-commands <command>
+  claude-collect-permissions <command>
 
 COMMANDS:
   list              List all active Claude Code sessions grouped by project
@@ -30,11 +30,11 @@ COMMANDS:
   help              Show this help message
 
 EXAMPLES:
-  claude-commands list
-  claude-commands collect
-  claude-commands collect --reset
-  claude-commands review review-2025-10-23-183045.json
-  claude-commands apply review-2025-10-23-183045.json
+  claude-collect-permissions list
+  claude-collect-permissions collect
+  claude-collect-permissions collect --reset
+  claude-collect-permissions review review-2025-10-23-183045.json
+  claude-collect-permissions apply review-2025-10-23-183045.json
 
 REQUIREMENTS:
   Claude Code CLI must be installed and authenticated
@@ -119,9 +119,9 @@ async function collectCommands(reset = false) {
   await writeState(state);
 
   console.log(`\nNext steps:`);
-  console.log(`1. Review commands interactively: claude-commands review ${reviewFileName}`);
+  console.log(`1. Review commands interactively: claude-collect-permissions review ${reviewFileName}`);
   console.log(`   OR manually edit ${reviewFileName} and set "approved": true/false`);
-  console.log(`2. Apply approved commands: claude-commands apply ${reviewFileName}`);
+  console.log(`2. Apply approved commands: claude-collect-permissions apply ${reviewFileName}`);
 }
 
 async function applyCommands(reviewFileName: string) {
@@ -182,7 +182,7 @@ async function main() {
       const reviewFileToReview = args[1];
       if (!reviewFileToReview) {
         console.error('Error: Please provide a review file path');
-        console.error('Usage: claude-commands review <review-file>');
+        console.error('Usage: claude-collect-permissions review <review-file>');
         process.exit(1);
       }
       await interactiveReview(join(REPO_ROOT, reviewFileToReview));
@@ -192,7 +192,7 @@ async function main() {
       const reviewFile = args[1];
       if (!reviewFile) {
         console.error('Error: Please provide a review file path');
-        console.error('Usage: claude-commands apply <review-file>');
+        console.error('Usage: claude-collect-permissions apply <review-file>');
         process.exit(1);
       }
       await applyCommands(reviewFile);
@@ -200,7 +200,7 @@ async function main() {
 
     default:
       console.error(`Unknown command: ${command}`);
-      console.error('Run "claude-commands help" for usage information');
+      console.error('Run "claude-collect-permissions help" for usage information');
       process.exit(1);
   }
 }
